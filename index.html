@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Match Pro</title>
+    <style>
+        :root {
+            --bg-color: #f4f7f6;
+            --card-color: #3498db;
+            --card-matched: #2ecc71;
+            --text-color: #333;
+            --danger-color: #e74c3c;
+            --dashboard-bg: #1e272e;
+            --dashboard-card: #2c3e50;
+            --dashboard-text: #ecf0f1;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        h1, h2 { margin-top: 20px; }
+
+        /* Role Selector */
+        #role-selector {
+            display: flex;
+            gap: 20px;
+            margin-top: 20vh;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            background-color: var(--card-color);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+
+        .btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+
+        .btn-danger { background-color: var(--danger-color); }
+
+        /* --- Student View (2.5D Game) --- */
+        #student-view { display: none; width: 100%; max-width: 600px; padding: 20px; text-align: center; }
+
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            perspective: 1000px; /* 2.5D Perspective */
+        }
+
+        .card {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            cursor: pointer;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.5s cubic-bezier(0.4, 0.2, 0.2, 1);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+            border-radius: 12px;
+        }
+
+        .card.flipped {
+            transform: rotateY(180deg);
+        }
+
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            border-radius: 12px;
+            border: 4px solid rgba(0,0,0,0.1);
+        }
+
+        .card-front {
+            background-color: var(--card-color);
+            background-image: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(0,0,0,0) 100%);
+            color: white;
+            transform: rotateY(0deg);
+        }
+
+        .card-back {
+            background-color: white;
+            color: var(--card-color);
+            transform: rotateY(180deg);
+        }
+
+        .card.matched .card-back {
+            background-color: var(--card-matched);
+            color: white;
+        }
+
+        /* --- Instructor Dashboard --- */
+        #instructor-view {
+            display: none;
+            width: 100%;
+            min-height: 100vh;
+            background-color: var(--dashboard-bg);
+            color: var(--dashboard-text);
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #333;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+        }
+
+        .student-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .student-card {
+            background-color: var(--dashboard-card);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            border-left: 5px solid var(--card-matched);
+            transition: border-color 0.3s;
+        }
+
+        /* Conditional Formatting for struggling students */
+        .student-card.struggling { border-left-color: var(--danger-color); }
+        .student-card.guessing { border-left-color: #f1c40f; } /* Yellow for random guessing */
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding-bottom: 5px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .alert-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            background: var(--danger-color);
+            color: white;
+            display: none;
+        }
+
+        .struggling .alert-badge.acc-alert { display: inline-block; }
+        .guessing .alert-badge.guess-alert { display: inline-block; background: #f39c12; }
+
+    </style>
+</head>
+<body>
+
+    <div id="role-selector">
+        <button class="btn" onclick="initRole('student')">👨‍🎓 Play Game (Student)</button>
+        <button class="btn" style="background-color: #2c3e50;" onclick="initRole('instructor')">👩‍🏫 Open Dashboard (Instructor)</button>
+    </div>
+
+    <div id="student-view">
+        <h1>Animals Memory Match</h1>
+        <div class="game-header">
+            <span id="moves-display">Moves: 0</span>
+            <span id="timer-display">Time: 00:00</span>
+        </div>
+        <div class="grid" id="game-grid"></div>
+    </div>
+
+    <div id="instructor-view">
+        <div class="dashboard-header">
+            <h2>Live Monitoring Dashboard</h2>
+            <button class="btn btn-danger" onclick="exportCSV()">📥 Download CSV Export</button>
+        </div>
+        <div class="student-grid" id="dashboard-grid">
+            </div>
+    </div>
+
+<script>
+    // System Architecture: BroadcastChannel for Local Intranet Sync without Database
+    const channel = new BroadcastChannel('memory_match_sync');
+
+    // --- Core Data ---
+    const categories = {
+        animals: ['🦁', '🦊', '🐸', '🐼', '🐯', '🐰', '🐮', '🐷']
+    };
+
+    let state = {
+        role: null,
+        studentId: 'Student_' + Math.floor(Math.random() * 1000), // Mock login ID
+        moves: 0,
+        matches: 0,
+        startTime: null,
+        lastClickTime: null,
+        totalClickTimeDelta: 0, // Used to calculate average time between moves
+        cards: [],
+        firstCard: null,
+        lockBoard: false,
+        timerInterval: null
+    };
+
+    // --- Instructor Data Storage (Runtime Memory only) ---
+    const sessionData = {};
+
+    function initRole(role) {
+        document.getElementById('role-selector').style.display = 'none';
+        state.role = role;
+
+        if (role === 'student') {
+            document.getElementById('student-view').style.display = 'block';
+            startStudentGame();
+        } else {
+            document.getElementById('instructor-view').style.display = 'block';
+            listenForTelemetry();
+        }
+    }
+
+    // ==========================================
+    // STUDENT LOGIC
+    // ==========================================
+
+    function startStudentGame() {
+        const grid = document.getElementById('game-grid');
+        grid.innerHTML = '';
+        state.moves = 0;
+        state.matches = 0;
+        state.startTime = Date.now();
+        state.lastClickTime = null;
+        updateStudentHUD();
+
+        // Randomization to prevent rote memorization
+        let items = [...categories.animals, ...categories.animals];
+        items.sort(() => Math.random() - 0.5);
+
+        items.forEach((item, index) => {
+            const card = document.createElement('div');
+            card.classList.add('card');
+            card.dataset.value = item;
+            card.innerHTML = `
+                <div class="card-face card-front">❓</div>
+                <div class="card-face card-back">${item}</div>
+            `;
+            card.addEventListener('click', () => flipCard(card));
+            grid.appendChild(card);
+            state.cards.push(card);
+        });
+
+        // Pre-Game Exposure Mechanic (Show for 3 seconds, then hide)
+        state.lockBoard = true;
+        state.cards.forEach(c => c.classList.add('flipped'));
+
+        setTimeout(() => {
+            state.cards.forEach(c => c.classList.remove('flipped'));
+            state.lockBoard = false;
+            startTimer();
+            sendTelemetry('start');
+        }, 3000);
+    }
+
+    function flipCard(card) {
+        if (state.lockBoard || card === state.firstCard || card.classList.contains('matched')) return;
+
+        card.classList.add('flipped');
+
+        // Cognitive logic: Calculate time since last click
+        const now = Date.now();
+        let timeToClick = 0;
+        if (state.lastClickTime) {
+            timeToClick = (now - state.lastClickTime) / 1000;
+            state.totalClickTimeDelta += timeToClick;
+        }
+        state.lastClickTime = now;
+
+        if (!state.firstCard) {
+            state.firstCard = card;
+            return;
+        }
+
+        // Second card clicked
+        state.moves++;
+        let isMatch = (state.firstCard.dataset.value === card.dataset.value);
+
+        if (isMatch) {
+            state.matches++;
+            state.firstCard.classList.add('matched');
+            card.classList.add('matched');
+            resetBoard();
+        } else {
+            state.lockBoard = true;
+            setTimeout(() => {
+                state.firstCard.classList.remove('flipped');
+                card.classList.remove('flipped');
+                resetBoard();
+            }, 1000);
+        }
+
+        updateStudentHUD();
+        sendTelemetry('move', isMatch, timeToClick);
+    }
+
+    function resetBoard() {
+        state.firstCard = null;
+        state.lockBoard = false;
+    }
+
+    function updateStudentHUD() {
+        document.getElementById('moves-display').innerText = `Moves: ${state.moves}`;
+    }
+
+    function startTimer() {
+        state.timerInterval = setInterval(() => {
+            let elapsed = Math.floor((Date.now() - state.startTime) / 1000);
+            let m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+            let s = String(elapsed % 60).padStart(2, '0');
+            document.getElementById('timer-display').innerText = `Time: ${m}:${s}`;
+        }, 1000);
+    }
+
+    function sendTelemetry(action, isMatch = false, timeToClick = 0) {
+        channel.postMessage({
+            id: state.studentId,
+            action: action,
+            moves: state.moves,
+            matches: state.matches,
+            timeToClick: timeToClick,
+            timestamp: Date.now()
+        });
+    }
+
+    // ==========================================
+    // INSTRUCTOR DASHBOARD LOGIC
+    // ==========================================
+
+    function listenForTelemetry() {
+        channel.onmessage = (event) => {
+            const data = event.data;
+            if (!sessionData[data.id]) {
+                sessionData[data.id] = { moves: 0, matches: 0, clickTimes: [] };
+            }
+
+            sessionData[data.id].moves = data.moves;
+            sessionData[data.id].matches = data.matches;
+            if (data.timeToClick > 0) sessionData[data.id].clickTimes.push(data.timeToClick);
+
+            updateDashboardUI();
+        };
+    }
+
+    function updateDashboardUI() {
+        const grid = document.getElementById('dashboard-grid');
+        grid.innerHTML = '';
+
+        for (const [studentId, stats] of Object.entries(sessionData)) {
+            // Calculations
+            let accuracy = stats.moves > 0 ? Math.round((stats.matches / stats.moves) * 100) : 100;
+            let avgTime = stats.clickTimes.length > 0
+                ? (stats.clickTimes.reduce((a,b) => a+b, 0) / stats.clickTimes.length).toFixed(1)
+                : 0;
+
+            // Conditional Formatting Logic
+            let cardClass = 'student-card';
+            if (stats.moves > 4 && accuracy < 40) cardClass += ' struggling';
+            if (stats.moves > 4 && avgTime < 1.2) cardClass += ' guessing';
+
+            const cardHTML = `
+                <div class="${cardClass}">
+                    <h3 style="margin-top:0;">${studentId}</h3>
+                    <div class="stat-row">
+                        <span>Pairs Found:</span>
+                        <strong>${stats.matches} / 8</strong>
+                    </div>
+                    <div class="stat-row">
+                        <span>Total Moves:</span>
+                        <strong>${stats.moves}</strong>
+                    </div>
+                    <div class="stat-row">
+                        <span>Match Accuracy:</span>
+                        <strong>${accuracy}% <span class="alert-badge acc-alert">Low Accuracy</span></strong>
+                    </div>
+                    <div class="stat-row">
+                        <span>Avg Time/Move:</span>
+                        <strong>${avgTime}s <span class="alert-badge guess-alert">Rapid Guessing</span></strong>
+                    </div>
+                </div>
+            `;
+            grid.innerHTML += cardHTML;
+        }
+    }
+
+    // --- CSV Data Export (Runtime memory clear compliance) ---
+    function exportCSV() {
+        if (Object.keys(sessionData).length === 0) {
+            alert("No session data to export yet.");
+            return;
+        }
+
+        let csvContent = "data:text/csv;charset=utf-8,";
+        csvContent += "Student ID,Total Moves,Matches Found,Accuracy (%),Avg Time Per Move (s)\n";
+
+        for (const [studentId, stats] of Object.entries(sessionData)) {
+            let accuracy = stats.moves > 0 ? Math.round((stats.matches / stats.moves) * 100) : 0;
+            let avgTime = stats.clickTimes.length > 0
+                ? (stats.clickTimes.reduce((a,b) => a+b, 0) / stats.clickTimes.length).toFixed(2)
+                : 0;
+
+            csvContent += `${studentId},${stats.moves},${stats.matches},${accuracy},${avgTime}\n`;
+        }
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `MemoryMatch_SessionMetrics_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+</script>
+</body>
+</html>
