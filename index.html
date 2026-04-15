@@ -3,164 +3,234 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Memory Match Pro | Multi-Device P2P</title>
+    <title>Memory Match Pro | Unified Suite</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root {
             --primary: #4a90e2; --secondary: #f39c12; --danger: #e74c3c;
             --success: #2ecc71; --dark: #1a1a2e; --light: #f4f7f6;
         }
-        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: var(--light); color: #333; }
-        .container { max-width: 900px; margin: auto; padding: 20px; text-align: center; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: var(--light); color: #333; overflow-x: hidden; }
+        .container { max-width: 1000px; margin: auto; padding: 20px; }
         .hidden { display: none; }
+        .flex-center { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; }
 
-        /* 2.5D Interface */
-        #game-board { display: flex; flex-wrap: wrap; gap: 10px; perspective: 1000px; justify-content: center; }
-        .card { width: 100px; height: 100px; position: relative; transform-style: preserve-3d; transition: transform 0.6s; cursor: pointer; }
+        /* Card Engine 2.5D */
+        #game-board { display: grid; gap: 15px; perspective: 1000px; margin: 20px auto; justify-content: center; }
+        .card { width: 110px; height: 110px; position: relative; transform-style: preserve-3d; transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; }
         .card.flipped { transform: rotateY(180deg); }
-        .card-face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; display: flex;
-                     align-items: center; justify-content: center; font-size: 1.2rem; border-radius: 12px;
-                     border: 4px solid white; box-shadow: 0 8px 15px rgba(0,0,0,0.1); text-align: center; padding: 5px; }
-        .card-front { background: var(--primary); color: white; }
-        .card-back { background: white; transform: rotateY(180deg); font-weight: bold; }
-        .matched .card-back { background: var(--success); color: white; }
+        .card-face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; display: flex; align-items: center; justify-content: center; border-radius: 12px; border: 4px solid white; box-shadow: 0 8px 15px rgba(0,0,0,0.1); font-weight: bold; font-size: 1.2rem; text-align: center; padding: 5px; }
+        .card-front { background: linear-gradient(135deg, var(--primary), #2980b9); color: white; font-size: 2rem; }
+        .card-back { background: white; transform: rotateY(180deg); color: var(--dark); }
+        .matched .card-back { background: var(--success); color: white; border-color: #27ae60; }
 
-        /* UI Elements */
-        .panel { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; background: var(--primary); margin: 5px; }
-        .id-badge { background: var(--dark); color: var(--secondary); padding: 5px 15px; border-radius: 20px; font-family: monospace; font-size: 1.2rem; }
-        .monitor-card { background: var(--dark); color: white; padding: 15px; border-radius: 10px; margin-top: 10px; text-align: left; }
+        /* Sequence Mode */
+        .seq-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+        .seq-item { background: white; padding: 15px 25px; border-radius: 10px; border: 3px solid var(--primary); cursor: pointer; width: 80%; max-width: 400px; font-weight: bold; transition: 0.3s; }
+        .seq-item.correct { border-color: var(--success); background: #e8f5e9; pointer-events: none; }
+
+        /* Dashboard & UI */
+        .panel { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        .monitor-card { background: var(--dark); color: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 8px solid var(--success); display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; align-items: center; }
+        .monitor-card.flagged { border-left-color: var(--danger); background: #2d142c; }
+        .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; background: var(--primary); transition: 0.2s; }
+        .btn-s { background: var(--secondary); }
+        .input-box { padding: 12px; border: 2px solid #ddd; border-radius: 8px; width: 250px; margin: 10px; }
     </style>
 </head>
 <body>
 
-    <div id="setup-view" class="container">
+    <div id="setup-view" class="container flex-center">
         <h1>Memory Match Pro</h1>
-        <p>Choose your role to begin P2P session</p>
-        <button class="btn" onclick="startPeer('instructor')">👨‍🏫 Instructor (Host)</button>
-        <button class="btn" style="background: var(--secondary);" onclick="showStudentJoin()">🎓 Student (Join)</button>
-
-        <div id="join-ui" class="hidden" style="margin-top: 20px;">
-            <input type="text" id="join-id" placeholder="Enter Session ID" style="padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
-            <button class="btn" onclick="startPeer('student')">Connect</button>
+        <div class="panel">
+            <button class="btn" onclick="startPeer('instructor')">👨‍🏫 Host Instructor Session</button>
+            <div style="margin: 20px 0; font-weight: bold; color: #999;">— OR —</div>
+            <input type="text" id="join-id" class="input-box" placeholder="Enter Session ID">
+            <button class="btn btn-s" onclick="startPeer('student')">🎓 Join as Student</button>
         </div>
     </div>
 
     <div id="instructor-view" class="container hidden">
         <div class="panel">
-            <h3>Instructor Dashboard</h3>
-            <p>Share this Session ID with students: <span id="my-id" class="id-badge">...</span></p>
-            <hr>
-            <label>Mode:</label>
-            <select id="cfg-mode">
-                <option value="memory">Standard Memory</option>
-                <option value="sequence">Operational Sequence</option>
-            </select>
-            <button class="btn" onclick="broadcastConfig()">Push Config to All Students</button>
+            <h2>Session Host: <span id="my-id" style="color:var(--primary); font-family: monospace;">...</span></h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+                <div>
+                    <label>Mode</label>
+                    <select id="cfg-mode" style="width:100%; padding:8px;">
+                        <option value="memory">2.5D Memory Match</option>
+                        <option value="sequence">Alternative Sequence</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Category</label>
+                    <select id="cfg-data" style="width:100%; padding:8px;">
+                        <option value="math">Math Logic</option>
+                        <option value="animals">Animals</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Difficulty</label>
+                    <select id="cfg-diff" style="width:100%; padding:8px;">
+                        <option value="Easy">Easy</option>
+                        <option value="Medium" selected>Medium</option>
+                        <option value="Hard">Hard</option>
+                    </select>
+                </div>
+            </div>
+            <button class="btn" style="margin-top:15px; width:100%;" onclick="broadcastConfig()">Push Session Configuration</button>
         </div>
-        <div id="student-list" class="monitor-card">Waiting for students...</div>
+        <h3>Live Monitoring Dashboard</h3>
+        <div id="monitor-feed"></div>
+        <button class="btn btn-s" onclick="exportCSV()">Export CSV Report</button>
     </div>
 
     <div id="student-view" class="container hidden">
-        <div class="panel" style="display:flex; justify-content: space-between; align-items: center;">
-            <div id="status">Connected to Instructor</div>
-            <div id="stats">Matches: 0</div>
+        <div class="panel" style="display:flex; justify-content:space-between; align-items:center;">
+            <div id="game-status" style="font-weight:bold;">Waiting for Instructor...</div>
+            <div id="game-stats">Matches: 0 | Moves: 0</div>
         </div>
-        <div id="game-board"></div>
+        <div id="game-engine"></div>
     </div>
 
 <script>
-    let peer, conn;
-    let myId;
+    const peer = new Peer();
+    let conn;
     let isInstructor = false;
-    const students = {};
+    const roster = {};
+    const datasets = {
+        math: [{q:'5+5', a:'10'}, {q:'12-4', a:'8'}, {q:'3x4', a:'12'}, {q:'20/2', a:'10'}, {q:'9+1', a:'10'}, {q:'15-5', a:'10'}],
+        animals: [{q:'🦁', a:'Lion'}, {q:'🐘', a:'Elephant'}, {q:'🦒', a:'Giraffe'}, {q:'🦓', a:'Zebra'}, {q:'🐵', a:'Monkey'}, {q:'🐷', a:'Pig'}],
+        sequence: [{o:1, t:'Turn on Tap'}, {o:2, t:'Apply Soap'}, {o:3, t:'Scrub Hands'}, {o:4, t:'Rinse Off'}, {o:5, t:'Dry with Towel'}]
+    };
 
-    function showStudentJoin() { document.getElementById('join-ui').classList.remove('hidden'); }
+    let state = { moves: 0, matches: 0, lastClick: 0, paces: [], seqIndex: 1 };
+
+    peer.on('open', id => { document.getElementById('my-id').innerText = id; });
 
     function startPeer(role) {
         isInstructor = (role === 'instructor');
-        peer = new Peer(); // PeerJS handles the serverless connection logic
+        document.getElementById('setup-view').classList.add('hidden');
+        document.getElementById(role + '-view').classList.remove('hidden');
 
-        peer.on('open', (id) => {
-            myId = id;
-            document.getElementById('setup-view').classList.add('hidden');
-            if (isInstructor) {
-                document.getElementById('instructor-view').classList.remove('hidden');
-                document.getElementById('my-id').innerText = id;
-                setupInstructorListeners();
-            } else {
-                document.getElementById('student-view').classList.remove('hidden');
-                const targetId = document.getElementById('join-id').value;
-                conn = peer.connect(targetId);
-                setupStudentListeners();
-            }
-        });
+        if (isInstructor) {
+            peer.on('connection', c => {
+                c.on('data', data => { roster[c.peer] = data; updateDashboard(); });
+            });
+        } else {
+            conn = peer.connect(document.getElementById('join-id').value);
+            conn.on('data', data => { if(data.type === 'SYNC') initGame(data.config); });
+        }
     }
 
     // --- Instructor Logic ---
-    function setupInstructorListeners() {
-        peer.on('connection', (c) => {
-            c.on('data', (data) => {
-                students[c.peer] = data;
-                updateMonitor();
-            });
-        });
-    }
-
     function broadcastConfig() {
-        const mode = document.getElementById('cfg-mode').value;
-        // In PeerJS, we send to all connected peers
-        Object.values(peer.connections).forEach(conns => {
-            conns[0].send({ type: 'CONFIG', mode: mode });
-        });
+        const config = {
+            mode: document.getElementById('cfg-mode').value,
+            data: document.getElementById('cfg-data').value,
+            diff: document.getElementById('cfg-diff').value
+        };
+        Object.values(peer.connections).forEach(conns => conns[0].send({ type: 'SYNC', config }));
     }
 
-    function updateMonitor() {
-        const list = document.getElementById('student-list');
-        list.innerHTML = '<h4>Active Students</h4>';
-        Object.entries(students).forEach(([id, data]) => {
-            list.innerHTML += `<div><strong>${id}</strong>: ${data.matches} matches | Pace: ${data.pace}s</div>`;
+    function updateDashboard() {
+        const feed = document.getElementById('monitor-feed');
+        feed.innerHTML = '';
+        Object.entries(roster).forEach(([id, s]) => {
+            const isFlagged = s.acc < 50 && s.moves > 4;
+            feed.innerHTML += `
+                <div class="monitor-card ${isFlagged ? 'flagged' : ''}">
+                    <strong>${id}</strong>
+                    <span>Moves: ${s.moves}</span>
+                    <span>Acc: ${s.acc}%</span>
+                    <span>Pace: ${s.pace}s</span>
+                </div>`;
         });
     }
 
     // --- Student Logic ---
-    function setupStudentListeners() {
-        conn.on('open', () => {
-            conn.send({ matches: 0, pace: 0 });
-        });
+    function initGame(cfg) {
+        const engine = document.getElementById('game-engine');
+        engine.innerHTML = '';
+        state = { moves: 0, matches: 0, lastClick: 0, paces: [], seqIndex: 1 };
+        document.getElementById('game-status').innerText = `${cfg.mode.toUpperCase()} - ${cfg.diff}`;
 
-        conn.on('data', (data) => {
-            if (data.type === 'CONFIG') {
-                initGame(data.mode);
-            }
-        });
+        if (cfg.mode === 'memory') {
+            const count = cfg.diff === 'Easy' ? 4 : (cfg.diff === 'Medium' ? 6 : 8);
+            let deck = [];
+            datasets[cfg.data].slice(0, count).forEach(i => { deck.push({v:i.a, d:i.q}, {v:i.a, d:i.a}); });
+            deck.sort(() => Math.random() - 0.5);
+
+            engine.style.display = 'grid';
+            engine.style.gridTemplateColumns = 'repeat(auto-fit, minmax(110px, 1fr))';
+            deck.forEach(data => {
+                const c = document.createElement('div');
+                c.className = 'card';
+                c.innerHTML = `<div class="card-face card-front">?</div><div class="card-face card-back">${data.d}</div>`;
+                c.dataset.v = data.v;
+                c.onclick = () => handleFlip(c);
+                engine.appendChild(c);
+            });
+            // Pre-Game Exposure
+            document.querySelectorAll('.card').forEach(c => c.classList.add('flipped'));
+            setTimeout(() => document.querySelectorAll('.card').forEach(c => c.classList.remove('flipped')), 3000);
+        } else {
+            engine.style.display = 'block';
+            let steps = [...datasets.sequence].sort(() => Math.random() - 0.5);
+            const list = document.createElement('div');
+            list.className = 'seq-list';
+            steps.forEach(s => {
+                const item = document.createElement('div');
+                item.className = 'seq-item';
+                item.innerText = s.t;
+                item.onclick = () => {
+                    if(s.o === state.seqIndex) {
+                        item.classList.add('correct');
+                        state.seqIndex++; state.matches++;
+                    } else { state.moves++; }
+                    sendTelemetry();
+                };
+                list.appendChild(item);
+            });
+            engine.appendChild(list);
+        }
     }
 
-    let matchCount = 0;
-    function initGame(mode) {
-        const board = document.getElementById('game-board');
-        board.innerHTML = '';
-        matchCount = 0;
+    let active = [];
+    function handleFlip(card) {
+        if (active.length === 2 || card.classList.contains('flipped')) return;
+        card.classList.add('flipped');
+        active.push(card);
+        const now = Date.now();
+        if(state.lastClick) state.paces.push((now - state.lastClick)/1000);
+        state.lastClick = now;
 
-        if (mode === 'memory') {
-            const items = ['🦁', '🐯', '🐘', '🦒', '🦁', '🐯', '🐘', '🦒'];
-            items.sort(() => Math.random() - 0.5);
-            items.forEach(val => {
-                const card = document.createElement('div');
-                card.className = 'card';
-                card.innerHTML = `<div class="card-face card-front">?</div><div class="card-face card-back">${val}</div>`;
-                card.onclick = () => {
-                    card.classList.toggle('flipped');
-                    matchCount++; // Simple simulation
-                    document.getElementById('stats').innerText = `Matches: ${matchCount}`;
-                    conn.send({ matches: matchCount, pace: 1.2 });
-                };
-                board.appendChild(card);
-            });
-        } else {
-            // Sequence logic here...
-            board.innerHTML = "<h3>Sequence Mode Activated</h3><p>Arrange steps in order...</p>";
+        if (active.length === 2) {
+            state.moves++;
+            if (active[0].dataset.v === active[1].dataset.v) {
+                state.matches++;
+                active.forEach(a => a.classList.add('matched'));
+                active = [];
+            } else {
+                setTimeout(() => { active.forEach(a => a.classList.remove('flipped')); active = []; }, 1000);
+            }
+            sendTelemetry();
         }
+    }
+
+    function sendTelemetry() {
+        const pace = state.paces.length ? (state.paces.reduce((a,b)=>a+b)/state.paces.length).toFixed(1) : 0;
+        const acc = state.moves > 0 ? Math.round((state.matches/state.moves)*100) : 100;
+        document.getElementById('game-stats').innerText = `Matches: ${state.matches} | Moves: ${state.moves}`;
+        conn.send({ moves: state.moves, matches: state.matches, acc, pace });
+    }
+
+    function exportCSV() {
+        let csv = "ID,Moves,Matches,Accuracy,Pace\n";
+        Object.entries(roster).forEach(([id, s]) => csv += `${id},${s.moves},${s.matches},${s.acc}%,${s.pace}s\n`);
+        const blob = new Blob([csv], {type: 'text/csv'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'MMP_Report.csv'; a.click();
     }
 </script>
 </body>
